@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIS3 CMD 模擬器</title>
+    <style> body { font-family: 'Courier New', monospace; background-color: #1a1a1a; color: #0F0; display: flex; justify-content: center; align-items: center; min-height: 100vh; } .cmd-container { background-color: #000; border: 2px solid #0F0; border-radius: 8px; width: 90%; max-width: 800px; height: 70vh; display: flex; flex-direction: column; padding: 16px; box-shadow: 0 0 20px rgba(0, 255, 0, 0.5); } .cmd-output { flex-grow: 1; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; margin-bottom: 10px; } .cmd-input-line { display: flex; } .cmd-prompt { margin-right: 5px; } .cmd-input { background: transparent; border: none; color: #0F0; flex-grow: 1; outline: none; caret-color: #0F0; } </style>
+</head>
+<body>
+    <div class="cmd-container">
+        <div id="cmdOutput" class="cmd-output"></div>
+        <div class="cmd-input-line">
+            <span class="cmd-prompt">C:\AIS3></span>
+            <input type="text" id="cmdInput" class="cmd-input" autofocus>
+        </div>
+    </div>
+    <script>
+        const cmdOutput = document.getElementById('cmdOutput');
+        const cmdInput = document.getElementById('cmdInput');
+        let currentState = 'initial';
+        
+        // 【！！！關鍵修改！！！】
+        // 後端 API 的基礎 URL，現在指向同一個主機的 /api 路徑，由 Nginx 進行轉發
+        const BACKEND_URL = '/api';
+
+        let isOption3Unlocked = false;
+        function displayMessage(message) { const line = document.createElement('div'); line.textContent = message; cmdOutput.appendChild(line); cmdOutput.scrollTop = cmdOutput.scrollHeight; }
+        function setCookie(name, value, days) { let expires = ""; if (days) { const date = new Date(); date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000)); expires = "; expires=" + date.toUTCString(); } document.cookie = name + "=" + (value || "") + expires + "; path=/"; }
+        function resetGame() { cmdOutput.innerHTML = ''; currentState = 'initial'; isOption3Unlocked = false; displayMessage('歡迎來到 AIS3 2024！\n請選擇您感興趣的主題：\n1. 基礎資安知識\n2. 網路安全實務\n3. 進階資安攻防競技\n4. 資訊安全研究'); setCookie('ais3_token', 'NOOB', 1); }
+        cmdInput.addEventListener('keydown', async (event) => {
+            if (event.key !== 'Enter') return;
+            const command = cmdInput.value.trim();
+            cmdInput.value = '';
+            displayMessage(`C:\\AIS3>${command}`);
+            if (currentState === 'initial') {
+                if (command === '3') {
+                    displayMessage('您選擇了「3. 進階資安攻防競技」。\n你是一名剛進入 AIS3 會場的新人...\n你是否要向這位「大神」提問？ (輸入 \'有\' 或 \'不要\')');
+                    currentState = 'story';
+                } else { displayMessage('這個主題目前沒有特別劇情。請選擇其他選項。'); }
+            } else if (currentState === 'story') {
+                if (command === '有') {
+                    const response = await fetch(`${BACKEND_URL}/get_master_notes`, { credentials: 'include' });
+                    const data = await response.json();
+                    displayMessage('你鼓起勇氣，走向大神...\n' + data.notes);
+                } else { displayMessage('你決定不打擾大神，默默離開...'); }
+                displayMessage('\n--- 專題討論階段 ---\n請選擇您想參與的專題：\n1. 養身\n2. 瘋狂熬夜');
+                const optResponse = await fetch(`${BACKEND_URL}/check_option_status`, { credentials: 'include' });
+                const optData = await optResponse.json();
+                isOption3Unlocked = optData.show_option_3;
+                if (isOption3Unlocked) { displayMessage('3. 抱住大神 or 成為大神'); }
+                currentState = 'topic_discussion';
+            } else if (currentState === 'topic_discussion') {
+                if (command === '3' && isOption3Unlocked) {
+                    displayMessage('正在驗證你的身份...');
+                    // 注意：這裡請求的是 /api/goodhacker
+                    const response = await fetch(`${BACKEND_URL}/goodhacker`, { credentials: 'include' });
+                    const data = await response.json();
+                    displayMessage(data.message);
+                    if (response.ok) displayMessage("看來你需要手動造 URL 來完成挑戰了...");
+                } else if (command === '1' || command === '2') {
+                    displayMessage('爆肝不健康，失敗，請重來');
+                    setTimeout(resetGame, 2000);
+                } else {
+                    displayMessage(isOption3Unlocked ? '無效的選項，請輸入 1, 2 或 3' : '無效的選項，請輸入 1 或 2');
+                }
+            }
+        });
+        window.onload = resetGame;
+    </script>
+</body>
+</html>
